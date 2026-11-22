@@ -2,122 +2,386 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scan Absensi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a4a38">
+<title>Absensi Madrasah</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --ink:#1c2a25; --paper:#f5f6f3; --line:#d5dbd4; --main:#14594a; --ok:#dff0e4; --warn:#fff1cf; --bad:#fbdcd8; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--paper); }
+  :root {
+    --g9:#06382b; --g7:#0b5a44; --g5:#16805f; --g1:#e3f3ea;
+    --gold:#d4a62a; --gold2:#f3d98a; --gold-d:#8a6a0c; --cream:#fffbee;
+    --ink:#17302a; --mute:#6b7d75; --line:#e3e9e2; --paper:#f4f7f2; --white:#fff;
+    --ok:#16805f; --warn:#c98a06; --bad:#c23a2b;
+    --sh:0 1px 2px rgba(6,56,43,.06), 0 8px 24px -10px rgba(6,56,43,.18);
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; font:15px/1.5 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--paper); min-height:100vh; }
+  body.lg { background:radial-gradient(circle at 20% 10%, rgba(243,217,138,.28), transparent 40%), linear-gradient(160deg, var(--g9), var(--g7) 60%, var(--g5)); }
   [hidden] { display:none !important; }
-  header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--main); color:#fff; font-size:13px; }
-  header a { color:#fff; text-decoration:underline; cursor:pointer; margin-left:10px; }
-  main { max-width:480px; margin:0 auto; padding:14px; }
-  button { font:inherit; padding:10px 14px; border:0; border-radius:6px; background:var(--main); color:#fff; cursor:pointer; }
-  button:disabled { opacity:.5; }
-  input { font:inherit; padding:10px; border:1px solid var(--line); border-radius:6px; background:#fff; width:100%; }
-  button:focus-visible, input:focus-visible { outline:2px solid var(--main); outline-offset:1px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:10px; }
-  .login { margin-top:12vh; }
-  .err { color:#a3261b; margin:0; }
-  #reader { width:100%; margin-bottom:10px; }
-  .r { padding:16px; border-radius:8px; font-size:18px; margin-top:10px; }
-  .r.ok { background:var(--ok); } .r.warn { background:var(--warn); } .r.bad { background:var(--bad); }
-  ul { list-style:none; margin:12px 0 0; padding:0; font-size:13px; }
-  li { padding:6px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:8px; }
+
+  /* Header */
+  header { position:sticky; top:0; z-index:20; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:calc(10px + env(safe-area-inset-top)) 16px 12px; color:#fff; background:linear-gradient(120deg, var(--g9), var(--g7)); border-bottom:3px solid var(--gold); }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .logo { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; font-size:20px; background:linear-gradient(145deg, var(--gold2), var(--gold)); box-shadow:0 0 0 3px rgba(243,217,138,.3); }
+  .brand b { display:block; font-size:16px; font-weight:800; letter-spacing:.2px; line-height:1.1; }
+  .brand small { color:var(--gold2); font-size:11.5px; }
+  .who { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12.5px; }
+  .who em { font-style:normal; background:rgba(255,255,255,.12); padding:4px 10px; border-radius:99px; }
+  .who a { cursor:pointer; padding:4px 10px; border-radius:99px; border:1px solid rgba(243,217,138,.6); color:var(--gold2); }
+  .who a:hover { background:var(--gold); color:var(--g9); }
+
+  /* Navigasi: tab di desktop, bar bawah di HP */
+  nav { display:flex; gap:6px; padding:10px 16px; background:var(--white); border-bottom:1px solid var(--line); overflow-x:auto; }
+  nav button { display:flex; align-items:center; gap:7px; padding:8px 14px; background:var(--paper); color:var(--g7); border:1px solid var(--line); border-radius:99px; font-weight:600; white-space:nowrap; }
+  nav button i { font-style:normal; font-size:16px; }
+  nav button.on { background:linear-gradient(135deg, var(--g7), var(--g5)); color:#fff; border-color:var(--g7); box-shadow:inset 0 -3px 0 var(--gold); }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+
+  /* Komponen dasar */
+  button { font:inherit; font-weight:600; padding:10px 16px; border:0; border-radius:10px; background:linear-gradient(135deg, var(--g7), var(--g5)); color:#fff; cursor:pointer; transition:transform .12s, box-shadow .12s; }
+  button:hover:not(:disabled) { box-shadow:0 6px 14px -6px rgba(6,56,43,.6); }
+  button:active:not(:disabled) { transform:scale(.97); }
+  button.sec { background:var(--white); color:var(--g7); border:1.5px solid var(--g7); }
+  button.gold, #cl { background:linear-gradient(135deg, var(--gold2), var(--gold)); color:var(--g9); }
+  button:disabled { opacity:.5; cursor:default; }
+  input, select { font:inherit; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--white); color:var(--ink); max-width:100%; min-width:0; }
+  label { font-size:13px; color:var(--mute); display:inline-flex; align-items:center; gap:6px; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline:3px solid var(--gold); outline-offset:1px; }
+  input:focus, select:focus { border-color:var(--gold); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  .card { background:var(--white); border:1px solid var(--line); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:10px; box-shadow:var(--sh); }
+  .err { color:var(--bad); margin:0; font-size:14px; }
+  .h { font-size:17px; font-weight:800; color:var(--g9); margin:0 0 4px; }
+
+  /* Login */
+  .login { max-width:380px; margin:9vh auto 0; padding:28px 24px; border-top:5px solid var(--gold); text-align:center; }
+  .login .logo { width:64px; height:64px; font-size:32px; margin:-60px auto 4px; border:4px solid var(--white); }
+  .login h2 { margin:0; color:var(--g9); font-size:22px; font-weight:800; }
+  .login p.sub { margin:0 0 6px; color:var(--mute); font-size:13.5px; }
+  .login input { width:100%; padding:12px 14px; }
+  .login button { padding:12px; font-size:16px; }
+
+  /* Scan */
+  .scanbox { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  #reader { width:100%; max-width:380px; border-radius:16px; overflow:hidden; border:3px solid var(--gold); background:var(--g9); min-height:60px; }
+  #reader:empty { display:none; }
+  #code { width:100%; max-width:380px; font-size:16px; text-align:center; border-color:var(--g5); }
+  #res { width:100%; max-width:380px; }
+  .r { display:flex; gap:14px; align-items:center; padding:16px; border-radius:16px; font-size:15px; border:1px solid transparent; box-shadow:var(--sh); }
+  .r .ri { flex:none; width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-size:24px; font-weight:800; color:#fff; }
+  .r b { font-size:18px; }
+  .r.ok { background:var(--g1); border-color:var(--ok); } .r.ok .ri { background:var(--ok); }
+  .r.warn { background:var(--cream); border-color:var(--gold); } .r.warn .ri { background:var(--gold); }
+  .r.bad { background:#fdecea; border-color:var(--bad); } .r.bad .ri { background:var(--bad); }
+
+  /* Hari ini */
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+  .chip { flex:1 1 90px; background:var(--white); border:1px solid var(--line); border-left:5px solid var(--mute); border-radius:12px; padding:8px 12px; box-shadow:var(--sh); }
+  .chip b { display:block; font-size:22px; line-height:1.1; font-weight:800; }
+  .chip span { font-size:12px; color:var(--mute); }
+  .c-Hadir { border-left-color:var(--ok); } .c-Terlambat { border-left-color:var(--gold); }
+  .c-Izin { border-left-color:#3b82a6; } .c-Sakit { border-left-color:#8a63b8; } .c-Alpa { border-left-color:var(--bad); }
+  .tgl { margin:0 0 10px; color:var(--g7); font-weight:700; }
+  .libur { background:var(--cream); border:1px solid var(--gold); color:var(--gold-d); padding:8px 12px; border-radius:10px; margin:0 0 10px; font-weight:600; }
+
+  /* Tabel */
+  .tw { overflow-x:auto; border:1px solid var(--line); border-radius:14px; background:var(--white); box-shadow:var(--sh); }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { background:var(--g7); color:#fff; font-weight:600; font-size:13px; position:sticky; top:0; }
+  tr:nth-child(even) td { background:#fafcf9; }
+  tr:last-child td { border-bottom:0; }
+  .s-Belum td { color:var(--mute); }
+  .bd { display:inline-block; padding:2px 10px; border-radius:99px; font-size:12.5px; font-weight:700; background:#eef1ed; color:var(--mute); }
+  .b-Hadir { background:var(--g1); color:var(--ok); } .b-Terlambat { background:var(--cream); color:var(--gold-d); }
+  .b-Izin { background:#e4f1f7; color:#25708f; } .b-Sakit { background:#efe8f8; color:#6f47a3; } .b-Alpa { background:#fdecea; color:var(--bad); }
+
+  /* Izin / Sakit */
+  #q { width:100%; }
+  .ls { margin-top:6px; border-radius:12px; overflow:hidden; }
+  .ls div { padding:11px 14px; background:var(--white); border:1px solid var(--line); margin-top:-1px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .ls div:hover { background:var(--cream); border-color:var(--gold); }
+  .ls small { color:var(--mute); }
+  #nm { color:var(--g9); font-size:16px; }
+
+  /* Kartu QR */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; }
+  .kartu { background:var(--white); border:1.5px solid var(--g7); border-top:6px solid var(--gold); border-radius:10px; padding:10px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:4px; break-inside:avoid; }
+  .kartu b { color:var(--g9); line-height:1.25; }
+  .kartu small { color:var(--mute); }
+  .kartu .no { font-size:11px; }
+
+  /* Rekap */
+  #ro p { margin:0 0 10px; }
+
+  /* HP */
+  @media (max-width:680px) {
+    nav { position:fixed; left:0; right:0; bottom:0; z-index:30; justify-content:space-around; gap:2px; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); border-top:3px solid var(--gold); border-bottom:0; box-shadow:0 -8px 24px -12px rgba(6,56,43,.35); }
+    nav button { flex:1; flex-direction:column; gap:1px; padding:6px 2px; font-size:11.5px; border:0; background:none; border-radius:10px; }
+    nav button i { font-size:20px; }
+    nav button.on { background:var(--g1); color:var(--g7); box-shadow:none; }
+    main { padding:12px 12px 96px; }
+    .row > button, .row > select { flex:1 1 auto; }
+    #rg { width:100% !important; }
+  }
+  @media print {
+    header, nav, .noprint { display:none !important; }
+    body { background:#fff; } main { max-width:none; padding:0; }
+    .kartu { -webkit-print-color-adjust:exact; print-color-adjust:exact; box-shadow:none; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
 </style>
 </head>
 <body>
-<header><b>Scan Absensi</b><span id="who" hidden><span id="nm"></span><a id="out">Keluar</a></span></header>
-<main>
-  <div id="vLogin" class="card login">
-    <input id="u" placeholder="Username" autocapitalize="off" autocomplete="username">
-    <input id="p" type="password" placeholder="Password" autocomplete="current-password">
-    <button id="go">Masuk</button>
-    <p id="err" class="err"></p>
-  </div>
-
-  <div id="vScan" hidden>
-    <div id="reader"></div>
-    <button id="cam">Mulai kamera</button>
-    <input id="code" placeholder="Atau scan dengan alat scanner, lalu Enter" autocomplete="off" style="margin-top:10px">
-    <div id="res"></div>
-    <ul id="hist"></ul>
-  </div>
-</main>
+<div id="app"></div>
 
 <script>
-/* GANTI dengan URL web app Apps Script (yang berakhiran /exec) */
-const API_URL = 'https://script.google.com/macros/s/AKfycbzMFfzn6YDrMexadG06a8dHdE99_mG88neselpdB8obJ-i-MxX3ZEg9QW1DTOEaCf6Rrg/exec';
-
+/* ===== Util & komunikasi ke server ===== */
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const todayStr = () => new Date().toLocaleDateString('sv-SE'); // yyyy-mm-dd
 const S = { token: sessionStorage.getItem('tk'), user: JSON.parse(sessionStorage.getItem('us') || 'null') };
 
-// Content-Type text/plain agar browser tidak mengirim preflight (Apps Script tidak menanganinya)
-async function call(action, payload) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ token: S.token, action, payload: payload || {} }),
-  });
-  const r = await res.json();
+// URL Web App Apps Script (Deploy > Manage deployments > Web app URL, berakhiran /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycbzMFfzn6YDrMexadG06a8dHdE99_mG88neselpdB8obJ-i-MxX3ZEg9QW1DTOEaCf6Rrg/exec';
+
+const call = async (action, payload) => {
+  let r;
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain agar tidak kena preflight CORS
+      body: JSON.stringify({ action, token: S.token, payload: payload || {} }),
+    });
+    r = await res.json();
+  } catch (e) { throw new Error('Tidak bisa terhubung ke server. Periksa internet atau URL Web App.'); }
   if (r.ok) return r.data;
   if (r.error === 'SESSION_EXPIRED') endSession();
   throw new Error(r.error);
+};
+
+function endSession() { sessionStorage.clear(); S.token = S.user = null; stopScanner(); viewLogin(); }
+function logout() { call('logout').catch(() => {}); endSession(); }
+
+/* ===== Login ===== */
+function viewLogin() {
+  document.body.className = 'lg';
+  $('#app').innerHTML = `<div class="card login"><div class="logo">🕌</div><h2>Absensi Madrasah</h2>
+    <p class="sub">Masuk untuk mulai mencatat kehadiran</p>
+    <input id="u" placeholder="Username" autocapitalize="off" autocomplete="username">
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="go">Masuk</button><p id="err" class="err"></p></div>`;
+  const go = async () => {
+    $('#go').disabled = true; $('#err').textContent = '';
+    try {
+      const r = await call('login', { username: $('#u').value.trim(), password: $('#p').value });
+      S.token = r.token; S.user = r.user;
+      sessionStorage.setItem('tk', r.token); sessionStorage.setItem('us', JSON.stringify(r.user));
+      viewMain();
+    } catch (e) { $('#err').textContent = e.message; $('#go').disabled = false; }
+  };
+  $('#go').onclick = go;
+  $('#p').onkeydown = e => { if (e.key === 'Enter') go(); };
 }
 
+async function changePw() {
+  const lama = prompt('Password lama:'); if (!lama) return;
+  const baru = prompt('Password baru (minimal 6 karakter):'); if (!baru) return;
+  try { await call('password', { lama, baru }); alert('Password berhasil diganti'); } catch (e) { alert(e.message); }
+}
+
+/* ===== Kerangka halaman — tambah fitur baru = tambah satu baris di PAGES ===== */
+const PAGES = [
+  { id: 'scan',   icon: '📷', label: 'Scan',       roles: ['admin', 'petugas'],                render: pgScan },
+  { id: 'today',  icon: '📋', label: 'Hari ini',   roles: ['admin', 'petugas', 'walikelas'],   render: pgToday },
+  { id: 'manual', icon: '✍️', label: 'Izin/Sakit', roles: ['admin', 'petugas', 'walikelas'],   render: pgManual },
+  { id: 'cards',  icon: '🪪', label: 'Kartu QR',   roles: ['admin', 'petugas'],                render: pgCards },
+  { id: 'rekap',  icon: '📊', label: 'Rekap',      roles: ['admin', 'walikelas'],              render: pgRekap },
+];
+
+function viewMain() {
+  document.body.className = '';
+  const pages = PAGES.filter(p => p.roles.includes(S.user.role));
+  $('#app').innerHTML = `<header><div class="brand"><div class="logo">🕌</div><div><b>Absensi Madrasah</b><small>Sistem kehadiran digital</small></div></div>
+    <div class="who"><em>${esc(S.user.nama)} · ${esc(S.user.role)}</em>
+    <a id="pw" tabindex="0">Ganti password</a><a id="out" tabindex="0">Keluar</a></div></header>
+    <nav>${pages.map(p => `<button data-id="${p.id}"><i>${p.icon}</i><span>${p.label}</span></button>`).join('')}</nav><main id="page"></main>`;
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => openPage(pages.find(p => p.id === b.dataset.id)));
+  $('#out').onclick = logout; $('#pw').onclick = changePw;
+  openPage(pages[0]);
+}
+
+function openPage(p) {
+  stopScanner();
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.id === p.id));
+  const el = $('#page'); el.innerHTML = '';
+  Promise.resolve(p.render(el)).catch(e => { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; });
+}
+
+/* ===== Halaman: Scan ===== */
 let scanner = null, busy = false, lastCode = '', lastAt = 0;
 function stopScanner() { if (scanner) { scanner.stop().catch(() => {}); scanner = null; } }
-function endSession() { sessionStorage.clear(); S.token = S.user = null; stopScanner(); show(); }
 
-function show() {
-  const on = !!(S.token && S.user);
-  $('#vLogin').hidden = on; $('#vScan').hidden = !on; $('#who').hidden = !on;
-  if (on) { $('#nm').textContent = S.user.nama; $('#cam').hidden = false; $('#res').innerHTML = ''; $('#hist').innerHTML = ''; }
-}
-
-async function login() {
-  $('#go').disabled = true; $('#err').textContent = '';
-  try {
-    const r = await call('login', { username: $('#u').value.trim(), password: $('#p').value });
-    if (!['admin', 'petugas'].includes(r.user.role)) throw new Error('Akun ini tidak punya akses scan');
-    S.token = r.token; S.user = r.user;
-    sessionStorage.setItem('tk', r.token); sessionStorage.setItem('us', JSON.stringify(r.user));
-    $('#p').value = ''; show();
-  } catch (e) { $('#err').textContent = e.message; }
-  $('#go').disabled = false;
+function pgScan(el) {
+  el.innerHTML = `<div class="card scanbox"><h3 class="h">Scan kartu QR</h3><div id="reader"></div><button id="cam">📷 Mulai kamera</button>
+    <input id="code" placeholder="Atau scan dengan alat scanner / ketik kode, lalu Enter" autocomplete="off"><div id="res"></div></div>`;
+  $('#cam').onclick = async () => {
+    try {
+      scanner = new Html5Qrcode('reader');
+      await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, submitCode);
+      $('#cam').hidden = true;
+    } catch (e) { scanner = null; $('#res').innerHTML = `<div class="r bad"><div class="ri">!</div><div>Kamera tidak bisa dibuka: ${esc(e)}</div></div>`; }
+  };
+  $('#code').onkeydown = e => { if (e.key === 'Enter') { submitCode(e.target.value.trim()); e.target.value = ''; } };
+  $('#code').focus();
 }
 
 async function submitCode(code) {
-  code = String(code || '').trim();
   const now = Date.now();
   if (busy || !code || (code === lastCode && now - lastAt < 4000)) return; // abaikan scan ganda berturut-turut
   busy = true; lastCode = code; lastAt = now;
   try {
     const r = await call('scan', { code });
     const cls = r.dup || r.status !== 'Hadir' ? 'warn' : 'ok';
-    $('#res').innerHTML = `<div class="r ${cls}"><b>${esc(r.p.nama)}</b><br>${esc(r.p.jenjang)} ${esc(r.p.kelas)}<br>${r.dup ? 'Sudah absen: ' : ''}${esc(r.status)} pukul ${esc(r.jam)}</div>`;
-    $('#hist').insertAdjacentHTML('afterbegin', `<li><span>${esc(r.p.nama)}</span><span>${esc(r.status)} ${esc(r.jam)}</span></li>`);
-    while ($('#hist').children.length > 8) $('#hist').lastChild.remove();
+    $('#res').innerHTML = `<div class="r ${cls}"><div class="ri">${cls === 'ok' ? '✓' : '!'}</div><div><b>${esc(r.p.nama)}</b><br>${esc(r.p.jenjang)} ${esc(r.p.kelas)}<br>
+      ${r.dup ? 'Sudah absen: ' : ''}${esc(r.status)} pukul ${esc(r.jam)}</div></div>`;
     if (navigator.vibrate) navigator.vibrate(80);
-  } catch (e) { $('#res').innerHTML = `<div class="r bad">${esc(e.message)}</div>`; }
-  setTimeout(() => { busy = false; }, 1000);
+  } catch (e) { $('#res').innerHTML = `<div class="r bad"><div class="ri">✕</div><div>${esc(e.message)}</div></div>`; }
+  setTimeout(() => { busy = false; }, 1200);
 }
 
-$('#go').onclick = login;
-$('#p').onkeydown = e => { if (e.key === 'Enter') login(); };
-$('#out').onclick = () => { call('logout').catch(() => {}); endSession(); };
-$('#code').onkeydown = e => { if (e.key === 'Enter') { submitCode(e.target.value); e.target.value = ''; } };
-$('#cam').onclick = async () => {
-  try {
-    scanner = new Html5Qrcode('reader');
-    await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, submitCode);
-    $('#cam').hidden = true;
-  } catch (e) { scanner = null; $('#res').innerHTML = `<div class="r bad">Kamera tidak bisa dibuka: ${esc(e)}</div>`; }
-};
+/* ===== Halaman: Hari ini ===== */
+function pgToday(el) {
+  el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option><option>MTS</option><option>MA</option><option>GURU</option></select>
+    <button id="rf" class="sec">↻ Muat ulang</button><button id="cl">Tutup hari</button></div><div id="sum"></div><div class="tw"><table id="tb"></table></div>`;
+  if (S.user.role !== 'admin') $('#cl').remove();
+  const load = async () => {
+    const d = await call('today', { jenjang: $('#j').value });
+    $('#sum').innerHTML = (d.libur ? `<div class="libur">Libur: ${esc(d.libur)}</div>` : '')
+      + `<p class="tgl">${esc(d.tanggal)}</p><div class="chips">`
+      + Object.entries(d.count).map(([k, v]) => `<div class="chip c-${esc(k)}"><b>${v}</b><span>${esc(k)}</span></div>`).join('') + '</div>';
+    $('#tb').innerHTML = '<tr><th>Nama</th><th>Kelas</th><th>Status</th><th>Jam</th></tr>'
+      + d.list.map(x => `<tr class="s-${esc(x.status)}"><td>${esc(x.nama)}</td><td>${esc(x.jenjang)} ${esc(x.kelas)}</td><td><span class="bd b-${esc(x.status)}">${esc(x.status)}</span></td><td>${esc(x.jam)}</td></tr>`).join('');
+  };
+  const reload = () => load().catch(e => alert(e.message));
+  $('#rf').onclick = reload; $('#j').onchange = reload;
+  if ($('#cl')) $('#cl').onclick = async () => {
+    if (!confirm('Tandai semua yang belum absen sebagai Alpa dan kirim laporan ke grup?')) return;
+    try { const r = await call('closeDay'); alert(r.pesan); reload(); } catch (e) { alert(e.message); }
+  };
+  return load();
+}
 
-show();
+/* ===== Halaman: Izin / Sakit / koreksi ===== */
+async function pgManual(el) {
+  el.innerHTML = '<p>Memuat data…</p>';
+  const all = await call('people', {});
+  el.innerHTML = `<div class="card"><h3 class="h">Catat izin, sakit, atau koreksi</h3><input id="q" placeholder="Cari nama (min. 2 huruf)"><div id="ls" class="ls"></div></div>
+    <div id="f" class="card" hidden style="margin-top:12px"><b id="nm"></b>
+    <select id="st">${['Izin', 'Sakit', 'Alpa', 'Hadir', 'Terlambat'].map(s => `<option>${s}</option>`).join('')}</select>
+    <input id="ket" placeholder="Keterangan (opsional)"><input id="tg" type="date" value="${todayStr()}"><button id="sv" class="gold">Simpan</button></div>`;
+  let pick = null;
+  $('#q').oninput = () => {
+    const q = $('#q').value.toLowerCase();
+    $('#ls').innerHTML = q.length < 2 ? '' : all.filter(p => p.nama.toLowerCase().includes(q)).slice(0, 15)
+      .map(p => `<div data-id="${esc(p.id)}">${esc(p.nama)} <small>${esc(p.jenjang)} ${esc(p.kelas)}</small></div>`).join('');
+  };
+  $('#ls').onclick = e => {
+    const d = e.target.closest('[data-id]'); if (!d) return;
+    pick = all.find(p => p.id === d.dataset.id);
+    $('#nm').textContent = `${pick.nama} (${pick.jenjang} ${pick.kelas})`; $('#f').hidden = false;
+  };
+  $('#sv').onclick = async () => {
+    try {
+      await call('manual', { id: pick.id, status: $('#st').value, keterangan: $('#ket').value, tanggal: $('#tg').value });
+      alert('Tersimpan'); $('#f').hidden = true; $('#q').value = ''; $('#ls').innerHTML = '';
+    } catch (e) { alert(e.message); }
+  };
+}
+
+/* ===== Halaman: Cetak kartu QR ===== */
+// "1-20", "4-20", "7" atau gabungan "1-5, 8, 10-12" -> himpunan nomor (urutan 1..max)
+function parseRange(txt, max) {
+  const out = new Set();
+  String(txt).split(',').map(x => x.trim()).filter(Boolean).forEach(part => {
+    const m = /^(\d+)\s*(?:-\s*(\d+))?$/.exec(part);
+    if (!m) throw new Error('Format nomor tidak dikenali: "' + part + '". Contoh: 1-20, 4-20, 7, atau 1-5, 8');
+    let a = +m[1], b = m[2] ? +m[2] : a;
+    if (a > b) [a, b] = [b, a];
+    for (let i = Math.max(a, 1); i <= Math.min(b, max); i++) out.add(i);
+  });
+  return out;
+}
+
+function pgCards(el) {
+  el.innerHTML = `<div class="row noprint"><select id="jj"><option value="MTS">MTs</option><option value="MA">MA</option><option value="GURU">Guru</option></select>
+    <input id="kl" placeholder="Kelas (kosong = semua)">
+    <input id="rg" placeholder="Nomor: 1-20, 4-20, 7 (kosong = semua)" style="width:260px">
+    <button id="mk">Buat kartu</button><button id="pr" class="sec">🖨 Cetak</button></div>
+    <p id="info" class="noprint"></p><div id="cards" class="cards"></div>`;
+  $('#pr').onclick = () => window.print();
+  $('#mk').onclick = async () => {
+    try {
+      const jj = $('#jj').value, kl = $('#kl').value.trim();
+      const list = (await call('people', { withCode: true })).filter(p => p.jenjang === jj && (!kl || p.kelas === kl));
+      const rg = $('#rg').value.trim(), want = rg ? parseRange(rg, list.length) : null;
+      const box = $('#cards'); box.innerHTML = '';
+      let shown = 0;
+      list.forEach((p, i) => {
+        if (want && !want.has(i + 1)) return;
+        shown++;
+        const c = document.createElement('div'); c.className = 'kartu';
+        c.innerHTML = `<div></div><b>${esc(p.nama)}</b><small>${esc(p.jenjang)} ${esc(p.kelas)} · ${esc(p.id)}</small><small class="no noprint">No. ${i + 1}</small>`;
+        box.appendChild(c);
+        new QRCode(c.firstChild, { text: p.code, width: 110, height: 110 });
+      });
+      $('#info').textContent = `Total ${list.length} orang (nomor 1–${list.length}). Ditampilkan ${shown} kartu.`
+        + (rg && !shown ? ' Tidak ada nomor dalam rentang itu.' : '');
+    } catch (e) { alert(e.message); }
+  };
+}
+
+/* ===== Halaman: Rekap ===== */
+function pgRekap(el) {
+  el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj"><option value="MTS">MTs</option><option value="MA">MA</option><option value="GURU">Guru</option></select>
+    <input id="rk" placeholder="Kelas (kosong = semua)"><label>Dari <input id="rd" type="date"></label><label>Sampai <input id="rs" type="date" value="${todayStr()}"></label></div>
+    <div class="row" style="margin:0"><button id="rb">Tampilkan</button><button id="re" class="gold">⬇ Unduh Excel</button></div></div><div id="ro" class="tw" style="border:0;box-shadow:none;background:none"></div>`;
+  if (S.user.role === 'walikelas') { $('#rj').hidden = true; $('#rk').hidden = true; }
+  const par = () => ({ jenjang: $('#rj').value, kelas: $('#rk').value.trim(), dari: $('#rd').value, sampai: $('#rs').value });
+  $('#rb').onclick = async () => {
+    try {
+      const r = await call('rekap', par());
+      $('#ro').innerHTML = `<p>Hari efektif: <b>${r.hariEfektif}</b></p><div class="tw"><table><tr><th>Nama</th><th>Kelas</th><th>H</th><th>T</th><th>I</th><th>S</th><th>A</th><th>% Hadir</th></tr>`
+        + r.rows.map(x => `<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${x.Hadir}</td><td>${x.Terlambat}</td><td>${x.Izin}</td><td>${x.Sakit}</td><td>${x.Alpa}</td><td><b>${x.persen}</b></td></tr>`).join('') + '</table></div>';
+    } catch (e) { alert(e.message); }
+  };
+  $('#re').onclick = async () => {
+    try {
+      if (typeof XLSX === 'undefined') throw new Error('Library Excel gagal dimuat. Periksa koneksi internet lalu muat ulang halaman.');
+      const q = par(), r = await call('rekap', q);
+      const wk = S.user.role === 'walikelas', jj = wk ? S.user.jenjang : q.jenjang, kl = wk ? S.user.kelas : q.kelas;
+      const aoa = [
+        ['REKAP ABSENSI ' + jj],
+        ['Kelas: ' + (kl || 'Semua') + ' | Periode: ' + (q.dari || 'awal') + ' s.d. ' + (q.sampai || 'sekarang') + ' | Hari efektif: ' + r.hariEfektif],
+        [],
+        ['No', 'ID', 'Nama', 'Kelas', 'Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa', 'Hari Efektif', '% Hadir'],
+        ...r.rows.map((x, i) => [i + 1, x.id, x.nama, x.kelas, x.Hadir, x.Terlambat, x.Izin, x.Sakit, x.Alpa, r.hariEfektif, x.persen]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [5, 10, 30, 10, 8, 10, 6, 6, 6, 13, 9].map(w => ({ wch: w }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
+      XLSX.writeFile(wb, ['Rekap', jj, kl || 'Semua', q.dari || 'awal', 'sd', q.sampai].join('_') + '.xlsx');
+    } catch (e) { alert(e.message); }
+  };
+}
+
+/* ===== Mulai ===== */
+if (S.token && S.user) viewMain(); else viewLogin();
 </script>
 </body>
 </html>
