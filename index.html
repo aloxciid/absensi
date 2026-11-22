@@ -277,17 +277,20 @@ const ORDER_J = ['MTS', 'MA', 'GURU'], ORDER_S = ['Hadir', 'Terlambat', 'Izin', 
 const inKamad = x => S.user.role !== 'kamad' || x.jenjang === S.user.jenjang || x.jenjang === 'GURU';
 
 // isi <option> dropdown jenjang + kelas dari daftar orang (dipakai di Rekap); nilai: "MTS|7A", "MTS|" = semua kelas
-function optHtml(list) {
+function optHtml(list, withAll) {
   const g = {};
   list.forEach(x => (g[x.jenjang] = g[x.jenjang] || new Set()).add(x.kelas));
   const js = ORDER_J.filter(j => g[j]).concat(Object.keys(g).filter(j => !ORDER_J.includes(j)));
-  return js.map(j => {
+  return (withAll ? '<option value="|">Semua</option>' : '') + js.map(j => {
     const nm = JLABEL[j] || j, ks = [...g[j]].filter(Boolean).sort((x, y) => x.localeCompare(y, 'id', { numeric: true }));
+    const one = k => `<option value="${esc(j)}|${esc(k)}">${esc(nm)}${j === 'GURU' ? '' : ' Kelas'} ${esc(k)}</option>`;
     if (!ks.length) return `<option value="${esc(j)}|">${esc(nm)}</option>`;
-    return `<optgroup label="${esc(nm)}"><option value="${esc(j)}|">Semua ${esc(nm)}</option>`
-      + ks.map(k => `<option value="${esc(j)}|${esc(k)}">${esc(nm)}${j === 'GURU' ? '' : ' Kelas'} ${esc(k)}</option>`).join('') + '</optgroup>';
+    if (ks.length === 1) return one(ks[0]); // hanya satu kelas (mis. wali kelas): tidak perlu "Semua"
+    return `<optgroup label="${esc(nm)}"><option value="${esc(j)}|">Semua ${esc(nm)}</option>` + ks.map(one).join('') + '</optgroup>';
   }).join('');
 }
+// "Semua" hanya untuk admin & petugas; peran lain otomatis dibatasi cakupannya
+const SEMUA = () => ['admin', 'petugas'].includes(S.user.role);
 
 function pgToday(el) {
   el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option></select>
@@ -297,17 +300,7 @@ function pgToday(el) {
 
   // pilihan filter dibuat dari data: Semua, lalu per jenjang (Semua MTs, MTs Kelas 7, Kelas 8, ...)
   const buildOptions = (list, keep) => {
-    const g = {};
-    list.forEach(x => (g[x.jenjang] = g[x.jenjang] || new Set()).add(x.kelas));
-    const js = ORDER_J.filter(j => g[j]).concat(Object.keys(g).filter(j => !ORDER_J.includes(j)));
-    let h = S.user.role === 'kamad' ? '' : '<option value="">Semua</option>';
-    js.forEach(j => {
-      const nm = JLABEL[j] || j, ks = [...g[j]].filter(Boolean).sort((x, y) => x.localeCompare(y, 'id', { numeric: true }));
-      if (!ks.length) { h += `<option value="${esc(j)}|">${esc(nm)}</option>`; return; }
-      h += `<optgroup label="${esc(nm)}"><option value="${esc(j)}|">Semua ${esc(nm)}</option>`
-        + ks.map(k => `<option value="${esc(j)}|${esc(k)}">${esc(nm)}${j === 'GURU' ? '' : ' Kelas'} ${esc(k)}</option>`).join('') + '</optgroup>';
-    });
-    const sel = $('#j'); sel.innerHTML = h;
+    const sel = $('#j'); sel.innerHTML = optHtml(list, SEMUA());
     if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
   };
 
@@ -380,17 +373,19 @@ function parseRange(txt, max) {
   return out;
 }
 
-function pgCards(el) {
-  el.innerHTML = `<div class="row noprint"><select id="jj"><option value="MTS">MTs</option><option value="MA">MA</option><option value="GURU">Guru</option></select>
-    <input id="kl" placeholder="Kelas (kosong = semua)">
+async function pgCards(el) {
+  el.innerHTML = '<p>Memuat data…</p>';
+  const ppl = (await call('people', {})).filter(inKamad);
+  if (el.dataset.p !== 'cards') return;
+  el.innerHTML = `<div class="row noprint"><select id="jj">${optHtml(ppl, false)}</select>
     <input id="rg" placeholder="Nomor: 1-20, 4-20, 7 (kosong = semua)" style="width:260px">
     <button id="mk">Buat kartu</button><button id="pr" class="sec">🖨 Cetak</button></div>
     <p id="info" class="noprint"></p><div id="cards" class="cards"></div>`;
   $('#pr').onclick = () => window.print();
   $('#mk').onclick = async () => {
     try {
-      const jj = $('#jj').value, kl = $('#kl').value.trim();
-      const list = (await call('people', { withCode: true })).filter(p => p.jenjang === jj && (!kl || p.kelas.toLowerCase() === kl.toLowerCase()));
+      const v = $('#jj').value, i = v.indexOf('|'), jj = v.slice(0, i), kl = v.slice(i + 1);
+      const list = (await call('people', { withCode: true })).filter(p => p.jenjang === jj && (!kl || p.kelas === kl));
       const rg = $('#rg').value.trim(), want = rg ? parseRange(rg, list.length) : null;
       const box = $('#cards'); box.innerHTML = '';
       let shown = 0;
@@ -412,12 +407,12 @@ function pgCards(el) {
 async function pgRekap(el) {
   const ppl = (await call('people', {})).filter(inKamad);
   if (el.dataset.p !== 'rekap') return;
-  const rjOpts = optHtml(ppl);
+  const rjOpts = optHtml(ppl, false);
   el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj">${rjOpts}</select>
     <label>Dari <input id="rd" type="date"></label><label>Sampai <input id="rs" type="date" value="${todayStr()}"></label></div>
     <div class="row" style="margin:0"><button id="rb">Tampilkan</button><button id="re" class="gold">⬇ Unduh Excel</button></div></div><div id="ro" class="tw" style="border:0;box-shadow:none;background:none"></div>`;
   if (S.user.role === 'walikelas') { $('#rj').hidden = true; }
-  if (S.user.role === 'kamad') $('#re').remove();
+  if (S.user.role === 'kamad') $('#re').hidden = true;
   const par = () => { const v = $('#rj').value, i = v.indexOf('|'); return { jenjang: v.slice(0, i), kelas: v.slice(i + 1), dari: $('#rd').value, sampai: $('#rs').value }; };
   $('#rb').onclick = async () => {
     try {
