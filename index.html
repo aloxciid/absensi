@@ -273,6 +273,19 @@ async function submitCode(code) {
 const JLABEL = { MTS: 'MTs', MA: 'MA', GURU: 'Guru' };
 const ORDER_J = ['MTS', 'MA', 'GURU'], ORDER_S = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa', 'Bolos', 'Belum'];
 
+// isi <option> dropdown jenjang + kelas dari daftar orang (dipakai di Rekap); nilai: "MTS|7A", "MTS|" = semua kelas
+function optHtml(list) {
+  const g = {};
+  list.forEach(x => (g[x.jenjang] = g[x.jenjang] || new Set()).add(x.kelas));
+  const js = ORDER_J.filter(j => g[j]).concat(Object.keys(g).filter(j => !ORDER_J.includes(j)));
+  return js.map(j => {
+    const nm = JLABEL[j] || j, ks = [...g[j]].filter(Boolean).sort((x, y) => x.localeCompare(y, 'id', { numeric: true }));
+    if (!ks.length) return `<option value="${esc(j)}|">${esc(nm)}</option>`;
+    return `<optgroup label="${esc(nm)}"><option value="${esc(j)}|">Semua ${esc(nm)}</option>`
+      + ks.map(k => `<option value="${esc(j)}|${esc(k)}">${esc(nm)}${j === 'GURU' ? '' : ' Kelas'} ${esc(k)}</option>`).join('') + '</optgroup>';
+  }).join('');
+}
+
 function pgToday(el) {
   el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option></select>
     <button id="rf" class="sec">↻ Muat ulang</button><button id="cl">Tutup hari</button></div><div id="sum"></div><div class="tw"><table id="tb"></table></div>`;
@@ -393,14 +406,16 @@ function pgCards(el) {
 }
 
 /* ===== Halaman: Rekap ===== */
-function pgRekap(el) {
-  const rjOpts = (S.user.role === 'kamad' ? [S.user.jenjang, 'GURU'] : ORDER_J).map(j => `<option value="${j}">${JLABEL[j] || j}</option>`).join('');
+async function pgRekap(el) {
+  const ppl = await call('people', {});
+  if (el.dataset.p !== 'rekap') return;
+  const rjOpts = optHtml(ppl);
   el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj">${rjOpts}</select>
-    <input id="rk" placeholder="Kelas (kosong = semua)"><label>Dari <input id="rd" type="date"></label><label>Sampai <input id="rs" type="date" value="${todayStr()}"></label></div>
+    <label>Dari <input id="rd" type="date"></label><label>Sampai <input id="rs" type="date" value="${todayStr()}"></label></div>
     <div class="row" style="margin:0"><button id="rb">Tampilkan</button><button id="re" class="gold">⬇ Unduh Excel</button></div></div><div id="ro" class="tw" style="border:0;box-shadow:none;background:none"></div>`;
-  if (S.user.role === 'walikelas') { $('#rj').hidden = true; $('#rk').hidden = true; }
+  if (S.user.role === 'walikelas') { $('#rj').hidden = true; }
   if (S.user.role === 'kamad') $('#re').remove();
-  const par = () => ({ jenjang: $('#rj').value, kelas: $('#rk').value.trim(), dari: $('#rd').value, sampai: $('#rs').value });
+  const par = () => { const v = $('#rj').value, i = v.indexOf('|'); return { jenjang: v.slice(0, i), kelas: v.slice(i + 1), dari: $('#rd').value, sampai: $('#rs').value }; };
   $('#rb').onclick = async () => {
     try {
       const r = await call('rekap', par());
