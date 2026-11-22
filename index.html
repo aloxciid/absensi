@@ -204,19 +204,21 @@ async function changePw() {
 }
 
 /* ===== Kerangka halaman — tambah fitur baru = tambah satu baris di PAGES ===== */
+const ROLE_LABEL = { admin: 'Admin', petugas: 'Petugas', walikelas: 'Wali kelas', kamad: 'Kepala madrasah' };
 const PAGES = [
-  { id: 'scan',   icon: '📷', label: 'Scan',       roles: ['admin', 'petugas'],                render: pgScan },
-  { id: 'today',  icon: '📋', label: 'Hari ini',   roles: ['admin', 'petugas', 'walikelas'],   render: pgToday },
-  { id: 'manual', icon: '✍️', label: 'Izin/Sakit', roles: ['admin', 'petugas', 'walikelas'],   render: pgManual },
-  { id: 'cards',  icon: '🪪', label: 'Kartu QR',   roles: ['admin', 'petugas'],                render: pgCards },
-  { id: 'rekap',  icon: '📊', label: 'Rekap',      roles: ['admin', 'walikelas'],              render: pgRekap },
+  { id: 'scan',   icon: '📷', label: 'Scan',       roles: ['admin', 'petugas', 'kamad'],               render: pgScan },
+  { id: 'today',  icon: '📋', label: 'Hari ini',   roles: ['admin', 'petugas', 'walikelas', 'kamad'],  render: pgToday },
+  { id: 'manual', icon: '✍️', label: 'Izin/Sakit', roles: ['admin', 'petugas', 'walikelas', 'kamad'],  render: pgManual },
+  { id: 'cards',  icon: '🪪', label: 'Kartu QR',   roles: ['admin', 'petugas'],                        render: pgCards },
+  { id: 'rekap',  icon: '📊', label: 'Rekap',      roles: ['admin', 'walikelas', 'kamad'],             render: pgRekap },
+  { id: 'users',  icon: '👥', label: 'Pengguna',   roles: ['admin'],                                   render: pgUsers },
 ];
 
 function viewMain() {
   document.body.className = '';
   const pages = PAGES.filter(p => p.roles.includes(S.user.role));
   $('#app').innerHTML = `<header><div class="brand"><div class="logo"><img src="${LOGO}" alt="Logo"></div><div><b>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</b><small>Sistem kehadiran digital</small></div></div>
-    <div class="who"><em>${esc(S.user.nama)} · ${esc(S.user.role)}</em>
+    <div class="who"><em>${esc(S.user.nama)} · ${esc(ROLE_LABEL[S.user.role] || S.user.role)}</em>
     <a id="pw" tabindex="0">Ganti password</a><a id="out" tabindex="0">Keluar</a></div></header>
     <nav>${pages.map(p => `<button data-id="${p.id}"><i>${p.icon}</i><span>${p.label}</span></button>`).join('')}</nav><main id="page"></main>`;
   document.querySelectorAll('nav button').forEach(b => b.onclick = () => openPage(pages.find(p => p.id === b.dataset.id)));
@@ -282,7 +284,7 @@ function pgToday(el) {
     const g = {};
     list.forEach(x => (g[x.jenjang] = g[x.jenjang] || new Set()).add(x.kelas));
     const js = ORDER_J.filter(j => g[j]).concat(Object.keys(g).filter(j => !ORDER_J.includes(j)));
-    let h = '<option value="">Semua</option>';
+    let h = S.user.role === 'kamad' ? '' : '<option value="">Semua</option>';
     js.forEach(j => {
       const nm = JLABEL[j] || j, ks = [...g[j]].filter(Boolean).sort((x, y) => x.localeCompare(y, 'id', { numeric: true }));
       if (!ks.length) { h += `<option value="${esc(j)}|">${esc(nm)}</option>`; return; }
@@ -392,10 +394,12 @@ function pgCards(el) {
 
 /* ===== Halaman: Rekap ===== */
 function pgRekap(el) {
-  el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj"><option value="MTS">MTs</option><option value="MA">MA</option><option value="GURU">Guru</option></select>
+  const rjOpts = (S.user.role === 'kamad' ? [S.user.jenjang, 'GURU'] : ORDER_J).map(j => `<option value="${j}">${JLABEL[j] || j}</option>`).join('');
+  el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj">${rjOpts}</select>
     <input id="rk" placeholder="Kelas (kosong = semua)"><label>Dari <input id="rd" type="date"></label><label>Sampai <input id="rs" type="date" value="${todayStr()}"></label></div>
     <div class="row" style="margin:0"><button id="rb">Tampilkan</button><button id="re" class="gold">⬇ Unduh Excel</button></div></div><div id="ro" class="tw" style="border:0;box-shadow:none;background:none"></div>`;
   if (S.user.role === 'walikelas') { $('#rj').hidden = true; $('#rk').hidden = true; }
+  if (S.user.role === 'kamad') $('#re').remove();
   const par = () => ({ jenjang: $('#rj').value, kelas: $('#rk').value.trim(), dari: $('#rd').value, sampai: $('#rs').value });
   $('#rb').onclick = async () => {
     try {
@@ -424,6 +428,47 @@ function pgRekap(el) {
     } catch (e) { alert(e.message); }
   };
 }
+
+/* ===== Halaman: Kelola pengguna (khusus admin) ===== */
+async function pgUsers(el) {
+  el.innerHTML = '<p>Memuat data…</p>';
+  const list = await call('users.list', {});
+  if (el.dataset.p !== 'users') return;
+  const jl = u => [JLABEL[u.jenjang] || u.jenjang, u.kelas].filter(Boolean).join(' ');
+  el.innerHTML = `<div class="row"><button id="nu">+ Tambah pengguna</button></div>
+    <div class="tw"><table><tr><th>Username</th><th>Nama</th><th>Peran</th><th>Jenjang/Kelas</th><th>Status</th><th></th></tr>`
+    + list.map(u => `<tr><td>${esc(u.username)}</td><td>${esc(u.nama)}</td><td>${esc(ROLE_LABEL[u.role] || u.role)}</td><td>${esc(jl(u))}</td>
+      <td><span class="bd ${u.aktif ? 'b-Hadir' : 'b-Alpa'}">${u.aktif ? 'Aktif' : 'Nonaktif'}</span></td>
+      <td><button class="sec" data-u="${esc(u.username)}">Ubah</button></td></tr>`).join('') + '</table></div><div id="uf"></div>';
+
+  const form = (u) => {
+    const baru = !u; u = u || { role: 'petugas', aktif: true };
+    $('#uf').innerHTML = `<div class="card" style="margin-top:12px"><h3 class="h">${baru ? 'Tambah pengguna' : 'Ubah ' + esc(u.username)}</h3>
+      <input id="fu" placeholder="Username (huruf/angka, min. 3)" value="${esc(u.username || '')}" ${baru ? '' : 'readonly'} autocapitalize="off">
+      <input id="fn" placeholder="Nama lengkap" value="${esc(u.nama || '')}">
+      <select id="fr">${Object.entries(ROLE_LABEL).map(([k, v]) => `<option value="${k}"${k === u.role ? ' selected' : ''}>${v}</option>`).join('')}</select>
+      <select id="fj"><option value="MTS">MTs</option><option value="MA">MA</option></select>
+      <input id="fk" placeholder="Kelas yang diampu (mis. 7A)" value="${esc(u.kelas || '')}">
+      <input id="fp" type="password" placeholder="${baru ? 'Password (min. 6 karakter)' : 'Password baru (kosongkan jika tidak diganti)'}" autocomplete="new-password">
+      <label><input id="fa" type="checkbox" style="width:auto" ${u.aktif ? 'checked' : ''}> Akun aktif</label>
+      <div class="row" style="margin:0"><button id="fs" class="gold">Simpan</button><button id="fc" class="sec">Batal</button></div></div>`;
+    $('#fj').value = u.jenjang || 'MTS';
+    const sync = () => { const r = $('#fr').value; $('#fj').hidden = !(r === 'walikelas' || r === 'kamad'); $('#fk').hidden = r !== 'walikelas'; };
+    $('#fr').onchange = sync; sync();
+    $('#fc').onclick = () => { $('#uf').innerHTML = ''; };
+    $('#fs').onclick = async () => {
+      try {
+        await call('users.save', { username: $('#fu').value.trim(), nama: $('#fn').value, role: $('#fr').value, jenjang: $('#fj').value,
+          kelas: $('#fk').value, password: $('#fp').value, aktif: $('#fa').checked });
+        alert('Tersimpan'); openPage(PAGES.find(p => p.id === 'users'));
+      } catch (e) { alert(e.message); }
+    };
+    $('#uf').scrollIntoView({ behavior: 'smooth' });
+  };
+  $('#nu').onclick = () => form();
+  el.querySelectorAll('[data-u]').forEach(b => b.onclick = () => form(list.find(x => x.username === b.dataset.u)));
+}
+
 /* ===== Dialog konfirmasi (logout) & petunjuk filter guru ===== */
 document.head.insertAdjacentHTML('beforeend', `<style>
   .modal { position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:16px; background:rgba(6,56,43,.55); }
