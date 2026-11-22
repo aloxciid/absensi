@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Absensi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root { --ink:#1c2a25; --paper:#f5f6f3; --line:#d5dbd4; --main:#14594a; --ok:#dff0e4; --warn:#fff1cf; --bad:#fbdcd8; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); background:var(--paper); }
+  [hidden] { display:none !important; }
+  header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--main); color:#fff; font-size:13px; }
+  header a { color:#fff; text-decoration:underline; cursor:pointer; margin-left:10px; }
+  main { max-width:480px; margin:0 auto; padding:14px; }
+  button { font:inherit; padding:10px 14px; border:0; border-radius:6px; background:var(--main); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  input { font:inherit; padding:10px; border:1px solid var(--line); border-radius:6px; background:#fff; width:100%; }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--main); outline-offset:1px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .login { margin-top:12vh; }
+  .err { color:#a3261b; margin:0; }
+  #reader { width:100%; margin-bottom:10px; }
+  .r { padding:16px; border-radius:8px; font-size:18px; margin-top:10px; }
+  .r.ok { background:var(--ok); } .r.warn { background:var(--warn); } .r.bad { background:var(--bad); }
+  ul { list-style:none; margin:12px 0 0; padding:0; font-size:13px; }
+  li { padding:6px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:8px; }
+</style>
+</head>
+<body>
+<header><b>Scan Absensi</b><span id="who" hidden><span id="nm"></span><a id="out">Keluar</a></span></header>
+<main>
+  <div id="vLogin" class="card login">
+    <input id="u" placeholder="Username" autocapitalize="off" autocomplete="username">
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="go">Masuk</button>
+    <p id="err" class="err"></p>
+  </div>
+
+  <div id="vScan" hidden>
+    <div id="reader"></div>
+    <button id="cam">Mulai kamera</button>
+    <input id="code" placeholder="Atau scan dengan alat scanner, lalu Enter" autocomplete="off" style="margin-top:10px">
+    <div id="res"></div>
+    <ul id="hist"></ul>
+  </div>
+</main>
+
+<script>
+/* GANTI dengan URL web app Apps Script (yang berakhiran /exec) */
+const API_URL = 'https://script.google.com/macros/s/AKfycbzMFfzn6YDrMexadG06a8dHdE99_mG88neselpdB8obJ-i-MxX3ZEg9QW1DTOEaCf6Rrg/exec';
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const S = { token: sessionStorage.getItem('tk'), user: JSON.parse(sessionStorage.getItem('us') || 'null') };
+
+// Content-Type text/plain agar browser tidak mengirim preflight (Apps Script tidak menanganinya)
+async function call(action, payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ token: S.token, action, payload: payload || {} }),
+  });
+  const r = await res.json();
+  if (r.ok) return r.data;
+  if (r.error === 'SESSION_EXPIRED') endSession();
+  throw new Error(r.error);
+}
+
+let scanner = null, busy = false, lastCode = '', lastAt = 0;
+function stopScanner() { if (scanner) { scanner.stop().catch(() => {}); scanner = null; } }
+function endSession() { sessionStorage.clear(); S.token = S.user = null; stopScanner(); show(); }
+
+function show() {
+  const on = !!(S.token && S.user);
+  $('#vLogin').hidden = on; $('#vScan').hidden = !on; $('#who').hidden = !on;
+  if (on) { $('#nm').textContent = S.user.nama; $('#cam').hidden = false; $('#res').innerHTML = ''; $('#hist').innerHTML = ''; }
+}
+
+async function login() {
+  $('#go').disabled = true; $('#err').textContent = '';
+  try {
+    const r = await call('login', { username: $('#u').value.trim(), password: $('#p').value });
+    if (!['admin', 'petugas'].includes(r.user.role)) throw new Error('Akun ini tidak punya akses scan');
+    S.token = r.token; S.user = r.user;
+    sessionStorage.setItem('tk', r.token); sessionStorage.setItem('us', JSON.stringify(r.user));
+    $('#p').value = ''; show();
+  } catch (e) { $('#err').textContent = e.message; }
+  $('#go').disabled = false;
+}
+
+async function submitCode(code) {
+  code = String(code || '').trim();
+  const now = Date.now();
+  if (busy || !code || (code === lastCode && now - lastAt < 4000)) return; // abaikan scan ganda berturut-turut
+  busy = true; lastCode = code; lastAt = now;
+  try {
+    const r = await call('scan', { code });
+    const cls = r.dup || r.status !== 'Hadir' ? 'warn' : 'ok';
+    $('#res').innerHTML = `<div class="r ${cls}"><b>${esc(r.p.nama)}</b><br>${esc(r.p.jenjang)} ${esc(r.p.kelas)}<br>${r.dup ? 'Sudah absen: ' : ''}${esc(r.status)} pukul ${esc(r.jam)}</div>`;
+    $('#hist').insertAdjacentHTML('afterbegin', `<li><span>${esc(r.p.nama)}</span><span>${esc(r.status)} ${esc(r.jam)}</span></li>`);
+    while ($('#hist').children.length > 8) $('#hist').lastChild.remove();
+    if (navigator.vibrate) navigator.vibrate(80);
+  } catch (e) { $('#res').innerHTML = `<div class="r bad">${esc(e.message)}</div>`; }
+  setTimeout(() => { busy = false; }, 1000);
+}
+
+$('#go').onclick = login;
+$('#p').onkeydown = e => { if (e.key === 'Enter') login(); };
+$('#out').onclick = () => { call('logout').catch(() => {}); endSession(); };
+$('#code').onkeydown = e => { if (e.key === 'Enter') { submitCode(e.target.value); e.target.value = ''; } };
+$('#cam').onclick = async () => {
+  try {
+    scanner = new Html5Qrcode('reader');
+    await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, submitCode);
+    $('#cam').hidden = true;
+  } catch (e) { scanner = null; $('#res').innerHTML = `<div class="r bad">Kamera tidak bisa dibuka: ${esc(e)}</div>`; }
+};
+
+show();
+</script>
+</body>
+</html>
