@@ -68,7 +68,7 @@
   /* Scan */
   .scanbox { display:flex; flex-direction:column; align-items:center; gap:12px; }
   #reader { width:100%; max-width:380px; border-radius:16px; overflow:hidden; border:3px solid var(--gold); background:var(--g9); min-height:60px; }
-  #reader:empty { display:none; }
+  #reader video { width:100% !important; height:auto !important; display:block; }
   #code { width:100%; max-width:380px; font-size:16px; text-align:center; border-color:var(--g5); }
   #res { width:100%; max-width:380px; }
   .r { display:flex; gap:14px; align-items:center; padding:16px; border-radius:16px; font-size:15px; border:1px solid transparent; box-shadow:var(--sh); }
@@ -215,11 +215,13 @@ function viewMain() {
   openPage(pages[0]);
 }
 
+let pageSeq = 0;
 function openPage(p) {
   stopScanner();
+  const my = ++pageSeq;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.id === p.id));
-  const el = $('#page'); el.innerHTML = '';
-  Promise.resolve(p.render(el)).catch(e => { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; });
+  const el = $('#page'); el.innerHTML = ''; el.dataset.p = p.id;
+  Promise.resolve(p.render(el)).catch(e => { if (my === pageSeq) el.innerHTML = `<p class="err">${esc(e.message)}</p>`; });
 }
 
 /* ===== Halaman: Scan ===== */
@@ -232,7 +234,7 @@ function pgScan(el) {
   $('#cam').onclick = async () => {
     try {
       scanner = new Html5Qrcode('reader');
-      await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, submitCode);
+      await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: (w, h) => { const m = Math.floor(Math.min(w, h) * 0.7); return { width: m, height: m }; } }, submitCode);
       $('#cam').hidden = true;
     } catch (e) { scanner = null; $('#res').innerHTML = `<div class="r bad"><div class="ri">!</div><div>Kamera tidak bisa dibuka: ${esc(e)}</div></div>`; }
   };
@@ -240,17 +242,19 @@ function pgScan(el) {
   $('#code').focus();
 }
 
+const out = (h) => { const e = $('#res'); if (e) e.innerHTML = h; };
 async function submitCode(code) {
+  if (!$('#res')) return; // halaman Scan sudah ditutup
   const now = Date.now();
   if (busy || !code || (code === lastCode && now - lastAt < 4000)) return; // abaikan scan ganda berturut-turut
   busy = true; lastCode = code; lastAt = now;
   try {
     const r = await call('scan', { code });
     const cls = r.dup || r.status !== 'Hadir' ? 'warn' : 'ok';
-    $('#res').innerHTML = `<div class="r ${cls}"><div class="ri">${cls === 'ok' ? '✓' : '!'}</div><div><b>${esc(r.p.nama)}</b><br>${esc(r.p.jenjang)} ${esc(r.p.kelas)}<br>
-      ${r.dup ? 'Sudah absen: ' : ''}${esc(r.status)} pukul ${esc(r.jam)}</div></div>`;
+    out( `<div class="r ${cls}"><div class="ri">${cls === 'ok' ? '✓' : '!'}</div><div><b>${esc(r.p.nama)}</b><br>${esc(r.p.jenjang)} ${esc(r.p.kelas)}<br>
+      ${r.dup ? 'Sudah absen: ' : ''}${esc(r.status)} pukul ${esc(r.jam)}</div></div>`);
     if (navigator.vibrate) navigator.vibrate(80);
-  } catch (e) { $('#res').innerHTML = `<div class="r bad"><div class="ri">✕</div><div>${esc(e.message)}</div></div>`; }
+  } catch (e) { out( `<div class="r bad"><div class="ri">✕</div><div>${esc(e.message)}</div></div>`); }
   setTimeout(() => { busy = false; }, 1200);
 }
 
@@ -261,6 +265,7 @@ function pgToday(el) {
   if (S.user.role !== 'admin') $('#cl').remove();
   const load = async () => {
     const d = await call('today', { jenjang: $('#j').value });
+    if (!$('#sum')) return; // pindah halaman saat memuat
     $('#sum').innerHTML = (d.libur ? `<div class="libur">Libur: ${esc(d.libur)}</div>` : '')
       + `<p class="tgl">${esc(d.tanggal)}</p><div class="chips">`
       + Object.entries(d.count).map(([k, v]) => `<div class="chip c-${esc(k)}"><b>${v}</b><span>${esc(k)}</span></div>`).join('') + '</div>';
@@ -280,6 +285,7 @@ function pgToday(el) {
 async function pgManual(el) {
   el.innerHTML = '<p>Memuat data…</p>';
   const all = await call('people', {});
+  if (el.dataset.p !== 'manual') return;
   el.innerHTML = `<div class="card"><h3 class="h">Catat izin, sakit, atau koreksi</h3><input id="q" placeholder="Cari nama (min. 2 huruf)"><div id="ls" class="ls"></div></div>
     <div id="f" class="card" hidden style="margin-top:12px"><b id="nm"></b>
     <select id="st">${['Izin', 'Sakit', 'Alpa', 'Hadir', 'Terlambat'].map(s => `<option>${s}</option>`).join('')}</select>
