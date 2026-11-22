@@ -238,7 +238,7 @@ let scanner = null, busy = false, lastCode = '', lastAt = 0;
 function stopScanner() { if (scanner) { scanner.stop().catch(() => {}); scanner = null; } }
 
 function pgScan(el) {
-  el.innerHTML = `<div class="card scanbox"><h3 class="h">Scan kartu QR</h3><div id="reader"></div><button id="cam">📷 Mulai kamera</button>
+  el.innerHTML = `<div class="card scanbox"><h3 class="h">Scan kartu QR</h3><div id="reader"></div><button id="cam">📷 Mulai Absen</button>
     <input id="code" placeholder="Atau scan dengan alat scanner / ketik kode, lalu Enter" autocomplete="off"><div id="res"></div></div>`;
   $('#cam').onclick = async () => {
     try {
