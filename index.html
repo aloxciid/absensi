@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a4a38">
-<title>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</title>
+<title>Absensi Madrasah</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -88,6 +88,8 @@
   .tgl { margin:0 0 10px; color:var(--g7); font-weight:700; }
   .libur { background:var(--cream); border:1px solid var(--gold); color:var(--gold-d); padding:8px 12px; border-radius:10px; margin:0 0 10px; font-weight:600; }
 
+  .c-Bolos { border-left-color:#d9661a; }
+
   /* Tabel */
   .tw { overflow-x:auto; border:1px solid var(--line); border-radius:14px; background:var(--white); box-shadow:var(--sh); }
   table { border-collapse:collapse; width:100%; }
@@ -99,6 +101,8 @@
   .bd { display:inline-block; padding:2px 10px; border-radius:99px; font-size:12.5px; font-weight:700; background:#eef1ed; color:var(--mute); }
   .b-Hadir { background:var(--g1); color:var(--ok); } .b-Terlambat { background:var(--cream); color:var(--gold-d); }
   .b-Izin { background:#e4f1f7; color:#25708f; } .b-Sakit { background:#efe8f8; color:#6f47a3; } .b-Alpa { background:#fdecea; color:var(--bad); }
+
+  .b-Bolos { background:#fdeedd; color:#b4540f; }
 
   /* Izin / Sakit */
   #q { width:100%; }
@@ -170,7 +174,7 @@ function logout() { call('logout').catch(() => {}); endSession(); }
 /* ===== Login ===== */
 function viewLogin() {
   document.body.className = 'lg';
-  $('#app').innerHTML = `<div class="card login"><div class="logo">🕌</div><h2>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</h2>
+  $('#app').innerHTML = `<div class="card login"><div class="logo">🕌</div><h2>Absensi Madrasah</h2>
     <p class="sub">Masuk untuk mulai mencatat kehadiran</p>
     <input id="u" placeholder="Username" autocapitalize="off" autocomplete="username">
     <input id="p" type="password" placeholder="Password" autocomplete="current-password">
@@ -206,7 +210,7 @@ const PAGES = [
 function viewMain() {
   document.body.className = '';
   const pages = PAGES.filter(p => p.roles.includes(S.user.role));
-  $('#app').innerHTML = `<header><div class="brand"><div class="logo">🕌</div><div><b>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</b><small>Sistem kehadiran digital</small></div></div>
+  $('#app').innerHTML = `<header><div class="brand"><div class="logo">🕌</div><div><b>Absensi Madrasah</b><small>Sistem kehadiran digital</small></div></div>
     <div class="who"><em>${esc(S.user.nama)} · ${esc(S.user.role)}</em>
     <a id="pw" tabindex="0">Ganti password</a><a id="out" tabindex="0">Keluar</a></div></header>
     <nav>${pages.map(p => `<button data-id="${p.id}"><i>${p.icon}</i><span>${p.label}</span></button>`).join('')}</nav><main id="page"></main>`;
@@ -259,21 +263,51 @@ async function submitCode(code) {
 }
 
 /* ===== Halaman: Hari ini ===== */
+const JLABEL = { MTS: 'MTs', MA: 'MA', GURU: 'Guru' };
+const ORDER_J = ['MTS', 'MA', 'GURU'], ORDER_S = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa', 'Bolos', 'Belum'];
+
 function pgToday(el) {
-  el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option><option>MTS</option><option>MA</option><option>GURU</option></select>
+  el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option></select>
     <button id="rf" class="sec">↻ Muat ulang</button><button id="cl">Tutup hari</button></div><div id="sum"></div><div class="tw"><table id="tb"></table></div>`;
   if (S.user.role !== 'admin') $('#cl').remove();
-  const load = async () => {
-    const d = await call('today', { jenjang: $('#j').value });
-    if (!$('#sum')) return; // pindah halaman saat memuat
-    $('#sum').innerHTML = (d.libur ? `<div class="libur">Libur: ${esc(d.libur)}</div>` : '')
-      + `<p class="tgl">${esc(d.tanggal)}</p><div class="chips">`
-      + Object.entries(d.count).map(([k, v]) => `<div class="chip c-${esc(k)}"><b>${v}</b><span>${esc(k)}</span></div>`).join('') + '</div>';
+  let data = null;
+
+  // pilihan filter dibuat dari data: Semua, lalu per jenjang (Semua MTs, MTs Kelas 7, Kelas 8, ...)
+  const buildOptions = (list, keep) => {
+    const g = {};
+    list.forEach(x => (g[x.jenjang] = g[x.jenjang] || new Set()).add(x.kelas));
+    const js = ORDER_J.filter(j => g[j]).concat(Object.keys(g).filter(j => !ORDER_J.includes(j)));
+    let h = '<option value="">Semua</option>';
+    js.forEach(j => {
+      const nm = JLABEL[j] || j, ks = [...g[j]].filter(Boolean).sort((x, y) => x.localeCompare(y, 'id', { numeric: true }));
+      if (!ks.length) { h += `<option value="${esc(j)}|">${esc(nm)}</option>`; return; }
+      h += `<optgroup label="${esc(nm)}"><option value="${esc(j)}|">Semua ${esc(nm)}</option>`
+        + ks.map(k => `<option value="${esc(j)}|${esc(k)}">${esc(nm)} Kelas ${esc(k)}</option>`).join('') + '</optgroup>';
+    });
+    const sel = $('#j'); sel.innerHTML = h;
+    if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  };
+
+  const render = () => {
+    const v = $('#j').value, i = v.indexOf('|'), jj = i < 0 ? '' : v.slice(0, i), kk = i < 0 ? '' : v.slice(i + 1);
+    const list = data.list.filter(x => !jj || (x.jenjang === jj && (!kk || x.kelas === kk)));
+    const count = {};
+    list.forEach(x => count[x.status] = (count[x.status] || 0) + 1);
+    $('#sum').innerHTML = (data.libur ? `<div class="libur">Libur: ${esc(data.libur)}</div>` : '')
+      + `<p class="tgl">${esc(data.tanggal)}</p><div class="chips">`
+      + Object.keys(count).sort((a, b) => ORDER_S.indexOf(a) - ORDER_S.indexOf(b))
+          .map(k => `<div class="chip c-${esc(k)}"><b>${count[k]}</b><span>${esc(k)}</span></div>`).join('') + '</div>';
     $('#tb').innerHTML = '<tr><th>Nama</th><th>Kelas</th><th>Status</th><th>Jam</th></tr>'
-      + d.list.map(x => `<tr class="s-${esc(x.status)}"><td>${esc(x.nama)}</td><td>${esc(x.jenjang)} ${esc(x.kelas)}</td><td><span class="bd b-${esc(x.status)}">${esc(x.status)}</span></td><td>${esc(x.jam)}</td></tr>`).join('');
+      + list.map(x => `<tr class="s-${esc(x.status)}"><td>${esc(x.nama)}</td><td>${esc(x.jenjang)} ${esc(x.kelas)}</td><td><span class="bd b-${esc(x.status)}">${esc(x.status)}</span></td><td>${esc(x.jam)}</td></tr>`).join('');
+  };
+
+  const load = async () => {
+    const d = await call('today', {});
+    if (!$('#sum')) return; // pindah halaman saat memuat
+    data = d; buildOptions(d.list, $('#j').value); render();
   };
   const reload = () => load().catch(e => alert(e.message));
-  $('#rf').onclick = reload; $('#j').onchange = reload;
+  $('#rf').onclick = reload; $('#j').onchange = () => { if (data) render(); };
   if ($('#cl')) $('#cl').onclick = async () => {
     if (!confirm('Tandai semua yang belum absen sebagai Alpa dan kirim laporan ke grup?')) return;
     try { const r = await call('closeDay'); alert(r.pesan); reload(); } catch (e) { alert(e.message); }
@@ -288,7 +322,7 @@ async function pgManual(el) {
   if (el.dataset.p !== 'manual') return;
   el.innerHTML = `<div class="card"><h3 class="h">Catat izin, sakit, atau koreksi</h3><input id="q" placeholder="Cari nama (min. 2 huruf)"><div id="ls" class="ls"></div></div>
     <div id="f" class="card" hidden style="margin-top:12px"><b id="nm"></b>
-    <select id="st">${['Izin', 'Sakit', 'Alpa', 'Hadir', 'Terlambat'].map(s => `<option>${s}</option>`).join('')}</select>
+    <select id="st">${['Izin', 'Sakit', 'Alpa', 'Bolos', 'Hadir', 'Terlambat'].map(s => `<option>${s}</option>`).join('')}</select>
     <input id="ket" placeholder="Keterangan (opsional)"><input id="tg" type="date" value="${todayStr()}"><button id="sv" class="gold">Simpan</button></div>`;
   let pick = null;
   $('#q').oninput = () => {
@@ -361,8 +395,8 @@ function pgRekap(el) {
   $('#rb').onclick = async () => {
     try {
       const r = await call('rekap', par());
-      $('#ro').innerHTML = `<p>Hari efektif: <b>${r.hariEfektif}</b></p><div class="tw"><table><tr><th>Nama</th><th>Kelas</th><th>H</th><th>T</th><th>I</th><th>S</th><th>A</th><th>% Hadir</th></tr>`
-        + r.rows.map(x => `<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${x.Hadir}</td><td>${x.Terlambat}</td><td>${x.Izin}</td><td>${x.Sakit}</td><td>${x.Alpa}</td><td><b>${x.persen}</b></td></tr>`).join('') + '</table></div>';
+      $('#ro').innerHTML = `<p>Hari efektif: <b>${r.hariEfektif}</b> <small style="color:var(--mute)">· H Hadir, T Terlambat, I Izin, S Sakit, A Alpa, B Bolos</small></p><div class="tw"><table><tr><th>Nama</th><th>Kelas</th><th>H</th><th>T</th><th>I</th><th>S</th><th>A</th><th>B</th><th>% Hadir</th></tr>`
+        + r.rows.map(x => `<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${x.Hadir}</td><td>${x.Terlambat}</td><td>${x.Izin}</td><td>${x.Sakit}</td><td>${x.Alpa}</td><td>${x.Bolos || 0}</td><td><b>${x.persen}</b></td></tr>`).join('') + '</table></div>';
     } catch (e) { alert(e.message); }
   };
   $('#re').onclick = async () => {
@@ -374,11 +408,11 @@ function pgRekap(el) {
         ['REKAP ABSENSI ' + jj],
         ['Kelas: ' + (kl || 'Semua') + ' | Periode: ' + (q.dari || 'awal') + ' s.d. ' + (q.sampai || 'sekarang') + ' | Hari efektif: ' + r.hariEfektif],
         [],
-        ['No', 'ID', 'Nama', 'Kelas', 'Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa', 'Hari Efektif', '% Hadir'],
-        ...r.rows.map((x, i) => [i + 1, x.id, x.nama, x.kelas, x.Hadir, x.Terlambat, x.Izin, x.Sakit, x.Alpa, r.hariEfektif, x.persen]),
+        ['No', 'ID', 'Nama', 'Kelas', 'Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa', 'Bolos', 'Hari Efektif', '% Hadir'],
+        ...r.rows.map((x, i) => [i + 1, x.id, x.nama, x.kelas, x.Hadir, x.Terlambat, x.Izin, x.Sakit, x.Alpa, x.Bolos || 0, r.hariEfektif, x.persen]),
       ];
       const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [5, 10, 30, 10, 8, 10, 6, 6, 6, 13, 9].map(w => ({ wch: w }));
+      ws['!cols'] = [5, 10, 30, 10, 8, 10, 6, 6, 6, 6, 13, 9].map(w => ({ wch: w }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
       XLSX.writeFile(wb, ['Rekap', jj, kl || 'Semua', q.dari || 'awal', 'sd', q.sampai].join('_') + '.xlsx');
