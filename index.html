@@ -273,6 +273,9 @@ async function submitCode(code) {
 const JLABEL = { MTS: 'MTs', MA: 'MA', GURU: 'Guru' };
 const ORDER_J = ['MTS', 'MA', 'GURU'], ORDER_S = ['Hadir', 'Terlambat', 'Izin', 'Sakit', 'Alpa', 'Bolos', 'Belum'];
 
+// kepala madrasah hanya boleh melihat jenjangnya sendiri + Guru (dijaga juga di server)
+const inKamad = x => S.user.role !== 'kamad' || x.jenjang === S.user.jenjang || x.jenjang === 'GURU';
+
 // isi <option> dropdown jenjang + kelas dari daftar orang (dipakai di Rekap); nilai: "MTS|7A", "MTS|" = semua kelas
 function optHtml(list) {
   const g = {};
@@ -324,7 +327,7 @@ function pgToday(el) {
   const load = async () => {
     const d = await call('today', {});
     if (!$('#sum')) return; // pindah halaman saat memuat
-    data = d; buildOptions(d.list, $('#j').value); render();
+    d.list = d.list.filter(inKamad); data = d; buildOptions(d.list, $('#j').value); render();
   };
   const reload = () => load().catch(e => alert(e.message));
   $('#rf').onclick = reload; $('#j').onchange = () => { if (data) render(); };
@@ -407,7 +410,7 @@ function pgCards(el) {
 
 /* ===== Halaman: Rekap ===== */
 async function pgRekap(el) {
-  const ppl = await call('people', {});
+  const ppl = (await call('people', {})).filter(inKamad);
   if (el.dataset.p !== 'rekap') return;
   const rjOpts = optHtml(ppl);
   el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj">${rjOpts}</select>
