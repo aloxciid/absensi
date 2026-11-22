@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a4a38">
-<title>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</title>
+<title>Absensi Madrasah</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -26,7 +26,8 @@
   /* Header */
   header { position:sticky; top:0; z-index:20; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:calc(10px + env(safe-area-inset-top)) 16px 12px; color:#fff; background:linear-gradient(120deg, var(--g9), var(--g7)); border-bottom:3px solid var(--gold); }
   .brand { display:flex; align-items:center; gap:10px; }
-  .logo { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; font-size:20px; background:linear-gradient(145deg, var(--gold2), var(--gold)); box-shadow:0 0 0 3px rgba(243,217,138,.3); }
+  .logo { flex:none; width:40px; height:40px; border-radius:10px; overflow:hidden; background:var(--g9); box-shadow:0 0 0 2px var(--gold), 0 0 0 5px rgba(243,217,138,.28); }
+  .logo img { display:block; width:100%; height:100%; object-fit:cover; }
   .brand b { display:block; font-size:16px; font-weight:800; letter-spacing:.2px; line-height:1.1; }
   .brand small { color:var(--gold2); font-size:11.5px; }
   .who { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12.5px; }
@@ -59,7 +60,7 @@
 
   /* Login */
   .login { max-width:380px; margin:9vh auto 0; padding:28px 24px; border-top:5px solid var(--gold); text-align:center; }
-  .login .logo { width:64px; height:64px; font-size:32px; margin:-60px auto 4px; border:4px solid var(--white); }
+  .login .logo { width:76px; height:76px; border-radius:18px; margin:-64px auto 6px; border:4px solid var(--white); box-shadow:0 0 0 2px var(--gold), 0 8px 20px -8px rgba(6,56,43,.5); }
   .login h2 { margin:0; color:var(--g9); font-size:22px; font-weight:800; }
   .login p.sub { margin:0 0 6px; color:var(--mute); font-size:13.5px; }
   .login input { width:100%; padding:12px 14px; }
@@ -171,10 +172,14 @@ const call = async (action, payload) => {
 function endSession() { sessionStorage.clear(); S.token = S.user = null; stopScanner(); viewLogin(); }
 function logout() { call('logout').catch(() => {}); endSession(); }
 
+/* ===== Logo (tertanam, tidak perlu file terpisah) ===== */
+const LOGO = 'data:image/png;base64,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';
+['icon', 'apple-touch-icon'].forEach(rel => { const l = document.createElement('link'); l.rel = rel; l.href = LOGO; document.head.appendChild(l); });
+
 /* ===== Login ===== */
 function viewLogin() {
   document.body.className = 'lg';
-  $('#app').innerHTML = `<div class="card login"><div class="logo">🕌</div><h2>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</h2>
+  $('#app').innerHTML = `<div class="card login"><div class="logo"><img src="${LOGO}" alt="Logo"></div><h2>Absensi Madrasah</h2>
     <p class="sub">Masuk untuk mulai mencatat kehadiran</p>
     <input id="u" placeholder="Username" autocapitalize="off" autocomplete="username">
     <input id="p" type="password" placeholder="Password" autocomplete="current-password">
@@ -210,7 +215,7 @@ const PAGES = [
 function viewMain() {
   document.body.className = '';
   const pages = PAGES.filter(p => p.roles.includes(S.user.role));
-  $('#app').innerHTML = `<header><div class="brand"><div class="logo">🕌</div><div><b>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</b><small>Sistem kehadiran digital</small></div></div>
+  $('#app').innerHTML = `<header><div class="brand"><div class="logo"><img src="${LOGO}" alt="Logo"></div><div><b>Absensi Madrasah</b><small>Sistem kehadiran digital</small></div></div>
     <div class="who"><em>${esc(S.user.nama)} · ${esc(S.user.role)}</em>
     <a id="pw" tabindex="0">Ganti password</a><a id="out" tabindex="0">Keluar</a></div></header>
     <nav>${pages.map(p => `<button data-id="${p.id}"><i>${p.icon}</i><span>${p.label}</span></button>`).join('')}</nav><main id="page"></main>`;
