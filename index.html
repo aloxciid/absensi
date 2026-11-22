@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a4a38">
-<title>Absensi Madrasah</title>
+<title>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -170,7 +170,7 @@ function logout() { call('logout').catch(() => {}); endSession(); }
 /* ===== Login ===== */
 function viewLogin() {
   document.body.className = 'lg';
-  $('#app').innerHTML = `<div class="card login"><div class="logo">🕌</div><h2>Absensi Madrasah</h2>
+  $('#app').innerHTML = `<div class="card login"><div class="logo">🕌</div><h2>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</h2>
     <p class="sub">Masuk untuk mulai mencatat kehadiran</p>
     <input id="u" placeholder="Username" autocapitalize="off" autocomplete="username">
     <input id="p" type="password" placeholder="Password" autocomplete="current-password">
@@ -206,7 +206,7 @@ const PAGES = [
 function viewMain() {
   document.body.className = '';
   const pages = PAGES.filter(p => p.roles.includes(S.user.role));
-  $('#app').innerHTML = `<header><div class="brand"><div class="logo">🕌</div><div><b>Absensi Madrasah</b><small>Sistem kehadiran digital</small></div></div>
+  $('#app').innerHTML = `<header><div class="brand"><div class="logo">🕌</div><div><b>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</b><small>Sistem kehadiran digital</small></div></div>
     <div class="who"><em>${esc(S.user.nama)} · ${esc(S.user.role)}</em>
     <a id="pw" tabindex="0">Ganti password</a><a id="out" tabindex="0">Keluar</a></div></header>
     <nav>${pages.map(p => `<button data-id="${p.id}"><i>${p.icon}</i><span>${p.label}</span></button>`).join('')}</nav><main id="page"></main>`;
