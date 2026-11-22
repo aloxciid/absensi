@@ -372,7 +372,7 @@ function pgCards(el) {
   $('#mk').onclick = async () => {
     try {
       const jj = $('#jj').value, kl = $('#kl').value.trim();
-      const list = (await call('people', { withCode: true }))..filter(p => p.jenjang === jj && (!kl || p.kelas.toLowerCase() === kl.toLowerCase()));
+      const list = (await call('people', { withCode: true })).filter(p => p.jenjang === jj && (!kl || p.kelas.toLowerCase() === kl.toLowerCase()));
       const rg = $('#rg').value.trim(), want = rg ? parseRange(rg, list.length) : null;
       const box = $('#cards'); box.innerHTML = '';
       let shown = 0;
