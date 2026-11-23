@@ -218,7 +218,7 @@ const PAGES = [
 
 function viewMain() {
   document.body.className = '';
-  const pages = PAGES.filter(p => p.roles.includes(S.user.role));
+  const pages = PAGES.filter(p => S.user.role === 'sysadmin' || p.roles.includes(S.user.role)); // sysadmin = semua menu
   $('#app').innerHTML = `<header><div class="brand"><div class="logo"><img src="${LOGO}" alt="Logo"></div><div><b>ABSENSI MA & MTs RAHMATUL UMMAH NW - SUKARAJA III</b><small>Sistem kehadiran digital</small></div></div>
     <div class="who"><em>${esc(S.user.nama)} · ${esc(ROLE_LABEL[S.user.role] || S.user.role)}</em>
     <a id="pw" tabindex="0">Ganti password</a><a id="out" tabindex="0">Keluar</a></div></header>
