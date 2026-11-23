@@ -123,6 +123,17 @@
   /* Rekap */
   #ro p { margin:0 0 10px; }
 
+  /* Nomor halaman (Hari ini) */
+  .pginfo { text-align:center; color:var(--mute); font-size:13px; margin:12px 0 0; }
+  .pager { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; align-items:center; margin:10px 0 4px; }
+  .pager button { padding:8px 12px; min-width:40px; }
+  .pager .pgd { color:var(--mute); padding:0 2px; }
+
+  /* Dialog libur */
+  .modal .box.lebar { max-width:460px; max-height:90vh; overflow:auto; }
+  .lrow { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .lrow small { color:var(--mute); }
+
   /* HP */
   @media (max-width:680px) {
     nav { position:fixed; left:0; right:0; bottom:0; z-index:30; justify-content:space-around; gap:2px; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); border-top:3px solid var(--gold); border-bottom:0; box-shadow:0 -8px 24px -12px rgba(6,56,43,.35); }
@@ -294,11 +305,25 @@ function optHtml(list, withAll) {
 // "Semua" hanya untuk admin & petugas; peran lain otomatis dibatasi cakupannya
 const SEMUA = () => ['sysadmin', 'admin', 'petugas'].includes(S.user.role);
 
+const PER = 100; // maksimal baris per halaman di menu Hari ini
+function pagerHtml(pg, pages, total) {
+  if (pages <= 1) return '';
+  let h = `<p class="pginfo">Menampilkan ${(pg - 1) * PER + 1}–${Math.min(pg * PER, total)} dari ${total}</p><div class="pager">`
+    + `<button class="sec" data-pg="${pg - 1}" ${pg === 1 ? 'disabled' : ''}>‹ Sebelumnya</button>`;
+  let prev = 0;
+  for (let i = 1; i <= pages; i++) {
+    if (i !== 1 && i !== pages && Math.abs(i - pg) > 2) continue;
+    if (i - prev > 1) h += '<span class="pgd">…</span>';
+    h += `<button class="${i === pg ? '' : 'sec'}" data-pg="${i}">${i}</button>`; prev = i;
+  }
+  return h + `<button class="sec" data-pg="${pg + 1}" ${pg === pages ? 'disabled' : ''}>Berikutnya ›</button></div>`;
+}
+
 function pgToday(el) {
   el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option></select>
-    <button id="rf" class="sec">↻ Muat ulang</button><button id="cl">Tutup hari</button></div><div id="sum"></div><div class="tw"><table id="tb"></table></div>`;
+    <button id="rf" class="sec">↻ Muat ulang</button>${['sysadmin', 'admin', 'petugas'].includes(S.user.role) ? '<button id="lb" class="gold">🏖️ Libur</button>' : ''}<button id="cl">Tutup hari</button></div><div id="sum"></div><div class="tw"><table id="tb"></table></div><div id="pg"></div>`;
   if (!ADM()) $('#cl').remove();
-  let data = null;
+  let data = null, page = 1;
 
   // pilihan filter dibuat dari data: Semua, lalu per jenjang (Semua MTs, MTs Kelas 7, Kelas 8, ...)
   const buildOptions = (list, keep) => {
@@ -315,8 +340,11 @@ function pgToday(el) {
       + `<p class="tgl">${esc(data.tanggal)}</p><div class="chips">`
       + Object.keys(count).sort((a, b) => ORDER_S.indexOf(a) - ORDER_S.indexOf(b))
           .map(k => `<div class="chip c-${esc(k)}"><b>${count[k]}</b><span>${esc(k)}</span></div>`).join('') + '</div>';
+    const pages = Math.max(1, Math.ceil(list.length / PER)); if (page > pages) page = pages;
+    const rows = list.slice((page - 1) * PER, page * PER);
     $('#tb').innerHTML = '<tr><th>Nama</th><th>Kelas</th><th>Status</th><th>Jam</th></tr>'
-      + list.map(x => `<tr class="s-${esc(x.status)}"><td>${esc(x.nama)}</td><td>${esc(x.jenjang)} ${esc(x.kelas)}</td><td><span class="bd b-${esc(x.status)}">${esc(x.status)}</span></td><td>${esc(x.jam)}</td></tr>`).join('');
+      + rows.map(x => `<tr class="s-${esc(x.status)}"><td>${esc(x.nama)}</td><td>${esc(x.jenjang)} ${esc(x.kelas)}</td><td><span class="bd b-${esc(x.status)}">${esc(x.status)}</span></td><td>${esc(x.jam)}</td></tr>`).join('');
+    $('#pg').innerHTML = pagerHtml(page, pages, list.length);
   };
 
   const load = async () => {
@@ -325,7 +353,12 @@ function pgToday(el) {
     d.list = d.list.filter(inKamad); data = d; buildOptions(d.list, $('#j').value); render();
   };
   const reload = () => load().catch(e => alert(e.message));
-  $('#rf').onclick = reload; $('#j').onchange = () => { if (data) render(); };
+  $('#rf').onclick = reload; $('#j').onchange = () => { if (data) { page = 1; render(); } };
+  $('#pg').onclick = e => { // nomor halaman / Sebelumnya / Berikutnya, lalu geser ke atas
+    const b = e.target.closest('[data-pg]'); if (!b || b.disabled) return;
+    page = +b.dataset.pg; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  if ($('#lb')) $('#lb').onclick = () => dlgLibur(reload);
   if ($('#cl')) $('#cl').onclick = async () => {
     if (!confirm('Tandai semua yang belum absen sebagai Alpa dan kirim laporan ke grup?')) return;
     try { const r = await call('closeDay'); alert(r.pesan); reload(); } catch (e) { alert(e.message); }
@@ -336,8 +369,14 @@ function pgToday(el) {
 /* ===== Halaman: Izin / Sakit / koreksi ===== */
 async function pgManual(el) {
   el.innerHTML = '<p>Memuat data…</p>';
-  const all = await call('people', {});
+  const [all, lb] = await Promise.all([call('people', {}), call('libur.hariIni', {}).catch(() => ({}))]);
   if (el.dataset.p !== 'manual') return;
+  if (lb.libur) { // hari ini libur: pencarian dan formulir ditiadakan
+    el.innerHTML = `<div class="card" style="text-align:center;padding:28px 18px"><div style="font-size:44px;line-height:1">🏖️</div>
+      <h3 class="h" style="margin:6px 0 0">Hari libur</h3><p style="margin:0;font-weight:600;color:var(--g7)">${esc(lb.libur)}</p>
+      <p style="margin:0;color:var(--mute);font-size:13px">Pencatatan izin, sakit, dan koreksi dinonaktifkan pada hari libur.</p></div>`;
+    return;
+  }
   el.innerHTML = `<div class="card"><h3 class="h">Catat izin, sakit, atau koreksi</h3><input id="q" placeholder="Cari nama (min. 2 huruf)"><div id="ls" class="ls"></div></div>
     <div id="f" class="card" hidden style="margin-top:12px"><b id="nm"></b>
     <select id="st">${['Izin', 'Sakit', 'Alpa', 'Bolos', 'Hadir', 'Terlambat'].map(s => `<option>${s}</option>`).join('')}</select>
@@ -492,6 +531,58 @@ async function pgUsers(el) {
   };
   $('#nu').onclick = () => form();
   el.querySelectorAll('[data-u]').forEach(b => b.onclick = () => form(list.find(x => x.username === b.dataset.u)));
+}
+
+/* ===== Dialog Libur (sysadmin, admin, petugas) ===== */
+function dlgLibur(onDone) {
+  const t = todayStr(), fm = d => new Date(d + 'T12:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div class="box lebar" role="dialog" aria-modal="true"><h3>🏖️ Atur hari libur</h3>
+    <p>Pada hari libur, scan ditolak dan Tutup hari tidak berjalan. Untuk satu hari, isi tanggal yang sama di kedua kolom.</p>
+    <div class="row" style="margin-bottom:8px"><label>Dari <input id="lbd" type="date" value="${t}"></label><label>Sampai <input id="lbe" type="date" value="${t}"></label></div>
+    <input id="lbk" placeholder="Keterangan (mis. Libur Maulid Nabi)" maxlength="100" style="width:100%;margin-bottom:10px">
+    <p id="lbm" class="err" style="margin:0 0 10px"></p>
+    <div class="acts"><button class="sec" id="lbb">Batal</button><button class="gold" id="lbv">Simpan</button></div>
+    <h4 style="margin:18px 0 6px;color:var(--g9)">Libur terjadwal</h4><div id="lbl"><p style="color:var(--mute);margin:0">Memuat…</p></div></div>`;
+  const q = s => m.querySelector(s);
+  const onKey = e => { if (e.key === 'Escape' && document.querySelectorAll('.modal').length === 1) close(); };
+  const close = () => { document.removeEventListener('keydown', onKey); m.remove(); };
+  const msg = (txt, ok) => { q('#lbm').textContent = txt; q('#lbm').style.color = ok ? 'var(--ok)' : ''; };
+
+  const draw = async () => {
+    try {
+      const list = await call('libur.list', {});
+      q('#lbl').innerHTML = list.length
+        ? list.map((x, i) => `<div class="lrow"><div><b>${esc(x.dari === x.sampai ? fm(x.dari) : fm(x.dari) + ' – ' + fm(x.sampai))}</b><br><small>${esc(x.keterangan)}</small></div><button class="sec" data-i="${i}">Hapus</button></div>`).join('')
+        : '<p style="color:var(--mute);margin:0">Belum ada libur terjadwal.</p>';
+      q('#lbl').onclick = async e => {
+        const b = e.target.closest('[data-i]'); if (!b) return;
+        const x = list[+b.dataset.i];
+        if (!await askConfirm('Hapus libur ini?', (x.dari === x.sampai ? fm(x.dari) : fm(x.dari) + ' – ' + fm(x.sampai)) + ' · ' + x.keterangan, 'Ya, hapus')) return;
+        try { await call('libur.hapus', { dari: x.dari, sampai: x.sampai }); msg('Libur dihapus', true); draw(); onDone(); } catch (err) { msg(err.message); }
+      };
+    } catch (e) { q('#lbl').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  };
+
+  q('#lbd').onchange = () => { if (q('#lbe').value < q('#lbd').value) q('#lbe').value = q('#lbd').value; };
+  q('#lbb').onclick = close;
+  m.onclick = e => { if (e.target === m) close(); };
+  q('#lbv').onclick = async () => {
+    const dari = q('#lbd').value, sampai = q('#lbe').value || dari, ket = q('#lbk').value.trim();
+    msg('');
+    if (!dari) return msg('Isi tanggal "Dari"');
+    if (sampai < dari) return msg('Tanggal "Sampai" tidak boleh sebelum "Dari"');
+    if (!ket) return msg('Keterangan wajib diisi');
+    const b = q('#lbv'); b.disabled = true;
+    try {
+      const r = await call('libur.simpan', { dari, sampai, keterangan: ket });
+      q('#lbk').value = ''; msg('✓ Tersimpan (' + r.jumlah + ' hari)', true); draw(); onDone();
+    } catch (e) { msg(e.message); }
+    b.disabled = false;
+  };
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(m);
+  q('#lbk').focus(); draw();
 }
 
 /* ===== Dialog konfirmasi (logout) & petunjuk filter guru ===== */
