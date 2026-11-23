@@ -204,14 +204,16 @@ async function changePw() {
 }
 
 /* ===== Kerangka halaman — tambah fitur baru = tambah satu baris di PAGES ===== */
-const ROLE_LABEL = { admin: 'Admin', petugas: 'Petugas', walikelas: 'Wali kelas', kamad: 'Kepala madrasah' };
+const ROLE_LABEL = { sysadmin: 'Sysadmin', admin: 'Admin', petugas: 'Petugas', walikelas: 'Wali kelas', kamad: 'Kepala madrasah' };
+// sysadmin = tertinggi (semua menu); admin = semua kecuali Pengguna
+const ADM = () => ['sysadmin', 'admin'].includes(S.user.role);
 const PAGES = [
-  { id: 'scan',   icon: '📷', label: 'Scan',       roles: ['admin', 'petugas', 'kamad'],               render: pgScan },
-  { id: 'today',  icon: '📋', label: 'Hari ini',   roles: ['admin', 'petugas', 'walikelas', 'kamad'],  render: pgToday },
-  { id: 'manual', icon: '✍️', label: 'Izin/Sakit', roles: ['admin', 'petugas', 'walikelas', 'kamad'],  render: pgManual },
-  { id: 'cards',  icon: '🪪', label: 'Kartu QR',   roles: ['admin', 'petugas'],                        render: pgCards },
-  { id: 'rekap',  icon: '📊', label: 'Rekap',      roles: ['admin', 'walikelas', 'kamad'],             render: pgRekap },
-  { id: 'users',  icon: '👥', label: 'Pengguna',   roles: ['admin'],                                   render: pgUsers },
+  { id: 'scan',   icon: '📷', label: 'Scan',       roles: ['sysadmin', 'admin', 'petugas', 'kamad'],               render: pgScan },
+  { id: 'today',  icon: '📋', label: 'Hari ini',   roles: ['sysadmin', 'admin', 'petugas', 'walikelas', 'kamad'],  render: pgToday },
+  { id: 'manual', icon: '✍️', label: 'Izin/Sakit', roles: ['sysadmin', 'admin', 'petugas', 'walikelas', 'kamad'],  render: pgManual },
+  { id: 'cards',  icon: '🪪', label: 'Kartu QR',   roles: ['sysadmin', 'admin', 'petugas'],                        render: pgCards },
+  { id: 'rekap',  icon: '📊', label: 'Rekap',      roles: ['sysadmin', 'admin', 'walikelas', 'kamad'],             render: pgRekap },
+  { id: 'users',  icon: '👥', label: 'Pengguna',   roles: ['sysadmin'],                                            render: pgUsers },
 ];
 
 function viewMain() {
@@ -290,12 +292,12 @@ function optHtml(list, withAll) {
   }).join('');
 }
 // "Semua" hanya untuk admin & petugas; peran lain otomatis dibatasi cakupannya
-const SEMUA = () => ['admin', 'petugas'].includes(S.user.role);
+const SEMUA = () => ['sysadmin', 'admin', 'petugas'].includes(S.user.role);
 
 function pgToday(el) {
   el.innerHTML = `<div class="row"><select id="j"><option value="">Semua</option></select>
     <button id="rf" class="sec">↻ Muat ulang</button><button id="cl">Tutup hari</button></div><div id="sum"></div><div class="tw"><table id="tb"></table></div>`;
-  if (S.user.role !== 'admin') $('#cl').remove();
+  if (!ADM()) $('#cl').remove();
   let data = null;
 
   // pilihan filter dibuat dari data: Semua, lalu per jenjang (Semua MTs, MTs Kelas 7, Kelas 8, ...)
@@ -410,9 +412,19 @@ async function pgRekap(el) {
   const rjOpts = optHtml(ppl, false);
   el.innerHTML = `<div class="card" style="margin-bottom:12px"><div class="row" style="margin:0"><select id="rj">${rjOpts}</select>
     <label>Dari <input id="rd" type="date"></label><label>Sampai <input id="rs" type="date" value="${todayStr()}"></label></div>
-    <div class="row" style="margin:0"><button id="rb">Tampilkan</button><button id="re" class="gold">⬇ Unduh Excel</button></div></div><div id="ro" class="tw" style="border:0;box-shadow:none;background:none"></div>`;
+    <div class="row" style="margin:0"><button id="rb">Tampilkan</button><button id="re" class="gold">⬇ Unduh Excel</button>${S.user.role === 'sysadmin' ? '<button id="ra" class="sec">🗄 Arsipkan Absensi</button>' : ''}</div></div><div id="ro" class="tw" style="border:0;box-shadow:none;background:none"></div>`;
   if (S.user.role === 'walikelas') { $('#rj').hidden = true; }
   if (S.user.role === 'kamad') $('#re').hidden = true;
+  if ($('#ra')) $('#ra').onclick = async () => {
+    if (!await askConfirm('Arsipkan semua data Absensi?', 'Semua catatan absensi disalin ke file arsip baru di Google Drive, lalu sheet Absensi dikosongkan. Rekap lama tidak bisa dibuka lagi di aplikasi. Pastikan rekap sudah diunduh dan tidak ada yang sedang scan.', 'Ya, arsipkan')) return;
+    const b = $('#ra'); b.disabled = true; b.textContent = 'Memproses… jangan tutup halaman';
+    try {
+      const r = await call('arsip');
+      if ($('#ro')) $('#ro').innerHTML = `<div class="card"><h3 class="h">Arsip selesai ✓</h3><p style="margin:0">${r.jumlah} baris absensi disalin ke file <b>${esc(r.nama)}</b> di Google Drive, lalu sheet Absensi dikosongkan.</p>
+        <a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--g7);font-weight:700">Buka file arsip</a></div>`;
+    } catch (e) { alert(e.message); }
+    if ($('#ra')) { b.disabled = false; b.textContent = '🗄 Arsipkan Absensi'; }
+  };
   const par = () => { const v = $('#rj').value, i = v.indexOf('|'); return { jenjang: v.slice(0, i), kelas: v.slice(i + 1), dari: $('#rd').value, sampai: $('#rs').value }; };
   $('#rb').onclick = async () => {
     try {
